@@ -6,8 +6,10 @@ export default function Demo() {
   return (
     <Filter
       inputPlaceholder="Filter"
-      inputSelectCategoryText="Select Category"
-      filtersConfig={[
+      inputSelectFilterTypeText="Select Category"
+      freeSolo={true}
+      noOptionsText="Keine Kategorie gefunden"
+      filterCategories={[
         {
           type: "FROM",
           label: "From",
@@ -16,8 +18,10 @@ export default function Demo() {
             { label: "Salzburg", value: "salzburg" },
             { label: "Linz", value: "linz" },
           ],
-          getOptionLabel: (option) => option.label,
           freeSolo: true,
+          getChipLabel: (appliedFilter) => appliedFilter.type.toUpperCase(),
+          getChipValue: (appliedFilter) =>
+            appliedFilter.value.toString().toUpperCase(),
         },
         {
           type: "TO",
@@ -27,17 +31,20 @@ export default function Demo() {
             { label: "Salzburg2", value: "salzburg2" },
             { label: "Linz2", value: "linz2" },
           ],
-          getOptionLabel: (option) => option.label,
+          getOptionLabel: (option) => option.label.toUpperCase(),
           freeSolo: true,
         },
         {
           type: "DELIVERED",
           label: "Delivered",
           options: [
-            { label: "Yes", value: true },
-            { label: "No", value: false },
+            { label: "YES", value: true },
+            { label: "NO", value: false },
           ],
-          getOptionLabel: (option) => option.label,
+          getOptionLabel: (option) => {
+            return option.label.toLowerCase();
+          },
+          noOptionsText: "Keine Delivered gefunden",
         },
       ]}
     />

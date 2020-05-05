@@ -1,9 +1,9 @@
 /* eslint-disable no-use-before-define */
-import React, { FC, useState, useReducer } from "react";
+import React, { FC, useReducer } from "react";
 import { createStyles, makeStyles, Theme } from "@material-ui/core/styles";
 import TextField from "@material-ui/core/TextField";
 import Autocomplete from "@material-ui/lab/Autocomplete";
-import { IFilterConfig } from "./IFilterConfig";
+import { IFilterCategory, IAppliedFilter } from "./IFilterConfig";
 import { Chip, Paper } from "@material-ui/core";
 
 const useStyles = makeStyles((theme: Theme) =>
@@ -23,23 +23,30 @@ const useStyles = makeStyles((theme: Theme) =>
 );
 
 interface IOwnProps {
+  /**
+   * Placeholder on empty field with no focus.
+   */
   inputPlaceholder: string;
-  inputSelectCategoryText: string;
-  filtersConfig: Array<IFilterConfig>;
-  // filtersConfig: { [key: string]: IFilter };
+  /**
+   * Placeholder on focused field with no filter-category selected.
+   */
+  inputSelectFilterTypeText: string;
+  filterCategories: Array<IFilterCategory>;
+  /**
+   * Possibility to enter free text as a filter - its type is then 'TEXT'
+   */
+  freeSolo?: boolean;
+  /**
+   * Text shown if no option with entered value is found.
+   */
+  noOptionsText?: string;
+
+  // filterCategories: { [key: string]: IFilter };
   // onMenuBlur?: (filters: any) => any;
   // onFilterTypeSelect?: (filters: any) => any;
   // onFilterValueSelect?: (filters: any) => any;
   // onFilterRemove?: (filters: any) => any;
 }
-
-interface IAppliedFilter {
-  type: string;
-  value: string | number | boolean;
-  label?: string;
-}
-
-const initialState = { count: 0 };
 
 type ActionMap<M extends { [index: string]: any }> = {
   [Key in keyof M]: M[Key] extends undefined
@@ -53,35 +60,36 @@ type ActionMap<M extends { [index: string]: any }> = {
 };
 
 export enum Types {
-  EnterFreeText = "ENTER_FREE_TEXT",
-  SelectFilter = "SELECT_FILTER",
-  SelectValue = "SELECT_VALUE",
+  AddFreeTextFilter = "ADD_FREE_TEXT_FILTER",
+  SelectFilterCategory = "SELECT_FILTER_CATEGORY",
+  AddFilter = "ADD_FILTER",
   RemoveFilter = "REMOVE_FILTER",
-  SetInputLabel = "SET_INPUT_LABEL",
+
   ValueChange = "VALUE_CHANGE",
   InputValueChange = "INPUT_VALUE_CHANGE",
+  SetInputLabel = "SET_INPUT_LABEL",
   ToggleOpen = "TOGGLE_OPEN",
   ResetFilter = "RESET_FILTER",
 }
 
 type ActionPayload = {
-  [Types.EnterFreeText]: {
-    value: string;
+  [Types.AddFreeTextFilter]: {
+    text: string;
   };
-  [Types.SelectFilter]: {
-    filterConfig: IFilterConfig | null;
+  [Types.SelectFilterCategory]: {
+    filterCategory: IFilterCategory | null;
   };
-  [Types.SelectValue]: {
-    value: string;
-  };
-  [Types.SetInputLabel]: {
-    value: string;
+  [Types.AddFilter]: {
+    appliedFilter: IAppliedFilter;
   };
   [Types.ValueChange]: {
     value: string | null;
   };
   [Types.InputValueChange]: {
-    value: string;
+    inputValue: string;
+  };
+  [Types.SetInputLabel]: {
+    inputLabel: string;
   };
   [Types.ToggleOpen]: {
     open: boolean;
@@ -98,8 +106,8 @@ export type FilterActions = ActionMap<ActionPayload>[keyof ActionMap<
 
 interface IState {
   inputLabel: string;
-  activeFilerConfig: IFilterConfig | null;
-  appliedFilter: Array<any>;
+  activeFilterCategory: IFilterCategory | null;
+  appliedFilter: Array<IAppliedFilter>;
   value: string | null;
   inputValue: string;
   open: boolean;
@@ -108,27 +116,30 @@ interface IState {
 
 function reducer(state: IState, action: FilterActions) {
   switch (action.type) {
-    case Types.EnterFreeText:
+    case Types.AddFreeTextFilter:
       return {
         ...state,
         appliedFilter: [
           ...state.appliedFilter,
-          { value: action.payload.value },
+          {
+            type: "TEXT",
+            label: action.payload.text,
+            value: action.payload.text,
+          },
         ],
-        activeFilerConfig: null,
+        activeFilterCategory: null,
         value: "",
         inputValue: "",
         open: true,
         forceOpen: true,
       };
 
-    case Types.SelectFilter:
-      console.log(state);
+    case Types.SelectFilterCategory:
       return {
         ...state,
-        activeFilerConfig: action.payload.filterConfig,
-        inputLabel: action.payload.filterConfig
-          ? action.payload.filterConfig.label
+        activeFilterCategory: action.payload.filterCategory,
+        inputLabel: action.payload.filterCategory
+          ? action.payload.filterCategory.label
           : state.inputLabel,
         value: "",
         inputValue: "",
@@ -136,15 +147,14 @@ function reducer(state: IState, action: FilterActions) {
         forceOpen: true,
       };
 
-    case Types.SelectValue:
+    case Types.AddFilter:
       return {
         ...state,
         appliedFilter: [
           ...state.appliedFilter,
-          // { value: action.payload.value },
-          action.payload.value,
+          { ...action.payload.appliedFilter },
         ],
-        activeFilerConfig: null,
+        activeFilterCategory: null,
         value: "",
         inputValue: "",
         open: true,
@@ -160,18 +170,16 @@ function reducer(state: IState, action: FilterActions) {
     case Types.InputValueChange:
       return {
         ...state,
-        inputValue: action.payload.value,
+        inputValue: action.payload.inputValue,
       };
 
     case Types.SetInputLabel:
       return {
         ...state,
-        inputLabel: action.payload.value,
+        inputLabel: action.payload.inputLabel,
       };
 
     case Types.ToggleOpen:
-      console.log(state);
-
       if (state.forceOpen) {
         return {
           ...state,
@@ -188,7 +196,7 @@ function reducer(state: IState, action: FilterActions) {
         ...state,
         value: "",
         inputValue: "",
-        activeFilerConfig: null,
+        activeFilterCategory: null,
         open: false,
       };
 
@@ -196,7 +204,7 @@ function reducer(state: IState, action: FilterActions) {
       return {
         ...state,
         appliedFilter: state.appliedFilter.filter(
-          (f, i) => i !== action.payload.index
+          (_f, i) => i !== action.payload.index
         ),
       };
     default:
@@ -206,13 +214,14 @@ function reducer(state: IState, action: FilterActions) {
 
 const Filter: FC<IOwnProps> = ({
   inputPlaceholder,
-  inputSelectCategoryText,
-  filtersConfig,
+  inputSelectFilterTypeText,
+  freeSolo = false,
+  noOptionsText,
+  filterCategories,
 }) => {
-  // const [inputLabel, setInputLabel] = useState(inputPlaceholder);
   const [state, dispatch] = useReducer(reducer, {
     inputLabel: inputPlaceholder,
-    activeFilerConfig: null,
+    activeFilterCategory: null,
     appliedFilter: [],
     value: "",
     inputValue: "",
@@ -221,18 +230,16 @@ const Filter: FC<IOwnProps> = ({
   });
 
   const handleInputOpen = () => {
-    // setInputLabel(inputSelectCategoryText);
     dispatch({
       type: Types.SetInputLabel,
-      payload: { value: inputSelectCategoryText },
+      payload: { inputLabel: inputSelectFilterTypeText },
     });
   };
 
   const handleInputClose = () => {
-    // setInputLabel(inputPlaceholder);
     dispatch({
       type: Types.SetInputLabel,
-      payload: { value: inputPlaceholder },
+      payload: { inputLabel: inputPlaceholder },
     });
     dispatch({
       type: Types.ResetFilter,
@@ -246,27 +253,40 @@ const Filter: FC<IOwnProps> = ({
     <>
       {state.appliedFilter && (
         <Paper component="ul" className={classes.root}>
-          {state.appliedFilter.map((filter, index) => {
-            let icon;
-
-            // if (filter.label === "React") {
-            //   icon = <TagFacesIcon />;
-            // }
+          {state.appliedFilter.map((filter: IAppliedFilter, index: number) => {
+            const filterCategory = filterCategories.find(
+              (fc) => fc.type === filter.type
+            );
 
             return (
-              <li key={filter.key}>
+              <li key={index}>
                 <Chip
-                  // icon={icon}
-                  label={filter.value}
-                  onDelete={
-                    // filter.label === "React" ? undefined : handleDelete(filter)
-                    () => {
-                      dispatch({
-                        type: Types.RemoveFilter,
-                        payload: { index },
-                      });
-                    }
+                  variant="outlined"
+                  label={
+                    filter.type === "TEXT" ? (
+                      <>
+                        Text: <strong>{filter.value}</strong>
+                      </>
+                    ) : (
+                      <>
+                        {filterCategory && filterCategory.getChipLabel
+                          ? filterCategory.getChipLabel(filter)
+                          : filter.type}
+                        :{" "}
+                        <strong>
+                          {filterCategory && filterCategory.getChipValue
+                            ? filterCategory.getChipValue(filter)
+                            : filter.label || filter.value}
+                        </strong>
+                      </>
+                    )
                   }
+                  onDelete={() => {
+                    dispatch({
+                      type: Types.RemoveFilter,
+                      payload: { index },
+                    });
+                  }}
                   className={classes.chip}
                 />
               </li>
@@ -277,18 +297,33 @@ const Filter: FC<IOwnProps> = ({
       <Autocomplete
         id="filter-category"
         options={
-          state.activeFilerConfig
-            ? (state.activeFilerConfig.options as any)
-            : (filtersConfig as any)
+          state.activeFilterCategory
+            ? (state.activeFilterCategory.options as any)
+            : (filterCategories as any)
         }
         getOptionLabel={
-          state.activeFilerConfig
-            ? state.activeFilerConfig.getOptionLabel
+          state.activeFilterCategory
+            ? (option) => {
+                return typeof option === "object" &&
+                  state.activeFilterCategory &&
+                  state.activeFilterCategory.getOptionLabel
+                  ? state.activeFilterCategory.getOptionLabel(option)
+                  : option.label;
+              }
             : (filterConfig: any) => filterConfig.label as string
         }
         style={{ width: 300 }}
         openOnFocus
-        freeSolo
+        freeSolo={
+          state.activeFilterCategory
+            ? state.activeFilterCategory.freeSolo || false
+            : freeSolo
+        }
+        noOptionsText={
+          state.activeFilterCategory
+            ? state.activeFilterCategory.noOptionsText || "No options"
+            : noOptionsText || "No options"
+        }
         renderInput={(params) => (
           <TextField
             id="filter-category-input"
@@ -299,7 +334,6 @@ const Filter: FC<IOwnProps> = ({
             onBlur={handleInputClose}
           />
         )}
-        // value={state.activeFilerConfig ? (state.activeFilerConfig as any) : null}
         value={state.value as any}
         onChange={(event: object, value: any, reason: string) => {
           console.log("onChange filter-category autocomplete");
@@ -310,42 +344,59 @@ const Filter: FC<IOwnProps> = ({
 
           switch (reason) {
             case "select-option":
-              if (!state.activeFilerConfig) {
+              if (!state.activeFilterCategory) {
                 dispatch({
-                  type: Types.SelectFilter,
-                  payload: { filterConfig: value },
+                  type: Types.SelectFilterCategory,
+                  payload: { filterCategory: value },
                 });
               } else {
                 dispatch({
-                  type: Types.SelectValue,
-                  payload: { value },
+                  type: Types.AddFilter,
+                  payload: {
+                    appliedFilter: {
+                      type: state.activeFilterCategory.type,
+                      value: value.value,
+                      label: value.label,
+                    },
+                  },
                 });
                 handleInputOpen();
               }
 
               break;
             case "clear":
-              if (!state.activeFilerConfig) {
+              if (!state.activeFilterCategory) {
                 dispatch({
-                  type: Types.SelectFilter,
-                  payload: { filterConfig: null },
+                  type: Types.SelectFilterCategory,
+                  payload: { filterCategory: null },
                 });
               } else {
                 dispatch({
-                  type: Types.SelectFilter,
-                  payload: { filterConfig: null },
+                  type: Types.SelectFilterCategory,
+                  payload: { filterCategory: null },
                 });
                 handleInputOpen();
               }
 
               break;
             case "create-option":
-              if (!state.activeFilerConfig) {
-                dispatch({ type: Types.EnterFreeText, payload: { value } });
-              } else {
+              if (!state.activeFilterCategory) {
                 dispatch({
-                  type: Types.SelectValue,
-                  payload: { value },
+                  type: Types.AddFreeTextFilter,
+                  payload: { text: value },
+                });
+              } else {
+                console.log("##########");
+
+                dispatch({
+                  type: Types.AddFilter,
+                  payload: {
+                    appliedFilter: {
+                      type: state.activeFilterCategory.type,
+                      value: value,
+                      label: value,
+                    },
+                  },
                 });
                 handleInputOpen();
               }
@@ -358,7 +409,7 @@ const Filter: FC<IOwnProps> = ({
           // console.log(newInputValue);
           dispatch({
             type: Types.InputValueChange,
-            payload: { value: newInputValue },
+            payload: { inputValue: newInputValue },
           });
         }}
         open={state.open}
