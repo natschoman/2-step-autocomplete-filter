@@ -1,8 +1,26 @@
 /* eslint-disable no-use-before-define */
 import React, { FC, useState, useReducer } from "react";
+import { createStyles, makeStyles, Theme } from "@material-ui/core/styles";
 import TextField from "@material-ui/core/TextField";
 import Autocomplete from "@material-ui/lab/Autocomplete";
 import { IFilterConfig } from "./IFilterConfig";
+import { Chip, Paper } from "@material-ui/core";
+
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
+    root: {
+      display: "flex",
+      justifyContent: "center",
+      flexWrap: "wrap",
+      listStyle: "none",
+      padding: theme.spacing(0.5),
+      margin: 0,
+    },
+    chip: {
+      margin: theme.spacing(0.5),
+    },
+  })
+);
 
 interface IOwnProps {
   inputPlaceholder: string;
@@ -69,6 +87,9 @@ type ActionPayload = {
     open: boolean;
   };
   [Types.ResetFilter]: {};
+  [Types.RemoveFilter]: {
+    index: number;
+  };
 };
 
 export type FilterActions = ActionMap<ActionPayload>[keyof ActionMap<
@@ -94,7 +115,11 @@ function reducer(state: IState, action: FilterActions) {
           ...state.appliedFilter,
           { value: action.payload.value },
         ],
-        open: false,
+        activeFilerConfig: null,
+        value: "",
+        inputValue: "",
+        open: true,
+        forceOpen: true,
       };
 
     case Types.SelectFilter:
@@ -116,9 +141,14 @@ function reducer(state: IState, action: FilterActions) {
         ...state,
         appliedFilter: [
           ...state.appliedFilter,
-          { value: action.payload.value },
+          // { value: action.payload.value },
+          action.payload.value,
         ],
-        open: false,
+        activeFilerConfig: null,
+        value: "",
+        inputValue: "",
+        open: true,
+        forceOpen: true,
       };
 
     case Types.ValueChange:
@@ -161,6 +191,14 @@ function reducer(state: IState, action: FilterActions) {
         activeFilerConfig: null,
         open: false,
       };
+
+    case Types.RemoveFilter:
+      return {
+        ...state,
+        appliedFilter: state.appliedFilter.filter(
+          (f, i) => i !== action.payload.index
+        ),
+      };
     default:
       return state;
   }
@@ -202,78 +240,138 @@ const Filter: FC<IOwnProps> = ({
     });
   };
 
-  return (
-    <Autocomplete
-      id="filter-category"
-      options={
-        state.activeFilerConfig
-          ? (state.activeFilerConfig.options as any)
-          : (filtersConfig as any)
-      }
-      getOptionLabel={
-        state.activeFilerConfig
-          ? state.activeFilerConfig.getOptionLabel
-          : (filterConfig: any) => filterConfig.label as string
-      }
-      style={{ width: 300 }}
-      openOnFocus
-      freeSolo
-      renderInput={(params) => (
-        <TextField
-          id="filter-category-input"
-          {...params}
-          label={state.inputLabel}
-          variant="outlined"
-          onFocus={handleInputOpen}
-          onBlur={handleInputClose}
-        />
-      )}
-      // value={state.activeFilerConfig ? (state.activeFilerConfig as any) : null}
-      value={state.value as any}
-      onChange={(event: object, value: any, reason: string) => {
-        console.log("onChange filter-category autocomplete");
-        console.log(event);
-        console.log(value);
-        console.log(reason);
-        dispatch({ type: Types.ValueChange, payload: { value } });
+  const classes = useStyles();
 
-        switch (reason) {
-          case "select-option":
-            dispatch({
-              type: Types.SelectFilter,
-              payload: { filterConfig: value },
-            });
-            break;
-          case "clear":
-            dispatch({
-              type: Types.SelectFilter,
-              payload: { filterConfig: null },
-            });
-            break;
-          case "create-option":
-            dispatch({ type: Types.EnterFreeText, payload: { value } });
+  return (
+    <>
+      {state.appliedFilter && (
+        <Paper component="ul" className={classes.root}>
+          {state.appliedFilter.map((filter, index) => {
+            let icon;
+
+            // if (filter.label === "React") {
+            //   icon = <TagFacesIcon />;
+            // }
+
+            return (
+              <li key={filter.key}>
+                <Chip
+                  // icon={icon}
+                  label={filter.value}
+                  onDelete={
+                    // filter.label === "React" ? undefined : handleDelete(filter)
+                    () => {
+                      dispatch({
+                        type: Types.RemoveFilter,
+                        payload: { index },
+                      });
+                    }
+                  }
+                  className={classes.chip}
+                />
+              </li>
+            );
+          })}
+        </Paper>
+      )}
+      <Autocomplete
+        id="filter-category"
+        options={
+          state.activeFilerConfig
+            ? (state.activeFilerConfig.options as any)
+            : (filtersConfig as any)
         }
-      }}
-      inputValue={state.inputValue}
-      onInputChange={(event: object, newInputValue: any) => {
-        // console.log("onInputChange filter-category autocomplete");
-        // console.log(event);
-        // console.log(newInputValue);
-        dispatch({
-          type: Types.InputValueChange,
-          payload: { value: newInputValue },
-        });
-      }}
-      open={state.open}
-      onOpen={() => {
-        console.log("onOpen");
-        dispatch({ type: Types.ToggleOpen, payload: { open: true } });
-      }}
-      onClose={() => {
-        console.log("onClose");
-        dispatch({ type: Types.ToggleOpen, payload: { open: false } });
-      }}
-    />
+        getOptionLabel={
+          state.activeFilerConfig
+            ? state.activeFilerConfig.getOptionLabel
+            : (filterConfig: any) => filterConfig.label as string
+        }
+        style={{ width: 300 }}
+        openOnFocus
+        freeSolo
+        renderInput={(params) => (
+          <TextField
+            id="filter-category-input"
+            {...params}
+            label={state.inputLabel}
+            variant="outlined"
+            onFocus={handleInputOpen}
+            onBlur={handleInputClose}
+          />
+        )}
+        // value={state.activeFilerConfig ? (state.activeFilerConfig as any) : null}
+        value={state.value as any}
+        onChange={(event: object, value: any, reason: string) => {
+          console.log("onChange filter-category autocomplete");
+          console.log(event);
+          console.log(value);
+          console.log(reason);
+          dispatch({ type: Types.ValueChange, payload: { value } });
+
+          switch (reason) {
+            case "select-option":
+              if (!state.activeFilerConfig) {
+                dispatch({
+                  type: Types.SelectFilter,
+                  payload: { filterConfig: value },
+                });
+              } else {
+                dispatch({
+                  type: Types.SelectValue,
+                  payload: { value },
+                });
+                handleInputOpen();
+              }
+
+              break;
+            case "clear":
+              if (!state.activeFilerConfig) {
+                dispatch({
+                  type: Types.SelectFilter,
+                  payload: { filterConfig: null },
+                });
+              } else {
+                dispatch({
+                  type: Types.SelectFilter,
+                  payload: { filterConfig: null },
+                });
+                handleInputOpen();
+              }
+
+              break;
+            case "create-option":
+              if (!state.activeFilerConfig) {
+                dispatch({ type: Types.EnterFreeText, payload: { value } });
+              } else {
+                dispatch({
+                  type: Types.SelectValue,
+                  payload: { value },
+                });
+                handleInputOpen();
+              }
+          }
+        }}
+        inputValue={state.inputValue}
+        onInputChange={(event: object, newInputValue: any) => {
+          // console.log("onInputChange filter-category autocomplete");
+          // console.log(event);
+          // console.log(newInputValue);
+          dispatch({
+            type: Types.InputValueChange,
+            payload: { value: newInputValue },
+          });
+        }}
+        open={state.open}
+        onOpen={() => {
+          console.log("onOpen");
+          dispatch({ type: Types.ToggleOpen, payload: { open: true } });
+        }}
+        onClose={() => {
+          console.log("onClose");
+          dispatch({ type: Types.ToggleOpen, payload: { open: false } });
+        }}
+      />
+    </>
   );
 };
 
