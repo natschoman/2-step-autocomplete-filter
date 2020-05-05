@@ -1,18 +1,17 @@
 /* eslint-disable no-use-before-define */
-import React, { FC, useReducer } from "react";
+import React, { FC, useReducer, useEffect } from "react";
 import { createStyles, makeStyles, Theme } from "@material-ui/core/styles";
 import TextField from "@material-ui/core/TextField";
 import Autocomplete from "@material-ui/lab/Autocomplete";
 import { IFilterCategory, IAppliedFilter } from "./IFilterConfig";
-import { Chip, Paper } from "@material-ui/core";
+import { Chip } from "@material-ui/core";
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
     root: {
       display: "flex",
-      justifyContent: "center",
       flexWrap: "wrap",
-      listStyle: "none",
+      alignItems: "center",
       padding: theme.spacing(0.5),
       margin: 0,
     },
@@ -46,6 +45,7 @@ interface IOwnProps {
   // onFilterTypeSelect?: (filters: any) => any;
   // onFilterValueSelect?: (filters: any) => any;
   // onFilterRemove?: (filters: any) => any;
+  onFilterChange?: (filters: Array<IAppliedFilter>) => any;
 }
 
 type ActionMap<M extends { [index: string]: any }> = {
@@ -218,6 +218,7 @@ const Filter: FC<IOwnProps> = ({
   freeSolo = false,
   noOptionsText,
   filterCategories,
+  onFilterChange,
 }) => {
   const [state, dispatch] = useReducer(reducer, {
     inputLabel: inputPlaceholder,
@@ -228,6 +229,12 @@ const Filter: FC<IOwnProps> = ({
     open: false,
     forceOpen: null,
   });
+
+  useEffect(() => {
+    if (onFilterChange) {
+      onFilterChange(state.appliedFilter);
+    }
+  }, [onFilterChange, state.appliedFilter]);
 
   const handleInputOpen = () => {
     dispatch({
@@ -250,49 +257,48 @@ const Filter: FC<IOwnProps> = ({
   const classes = useStyles();
 
   return (
-    <>
+    <div className={classes.root}>
       {state.appliedFilter && (
-        <Paper component="ul" className={classes.root}>
+        <>
           {state.appliedFilter.map((filter: IAppliedFilter, index: number) => {
             const filterCategory = filterCategories.find(
               (fc) => fc.type === filter.type
             );
 
             return (
-              <li key={index}>
-                <Chip
-                  variant="outlined"
-                  label={
-                    filter.type === "TEXT" ? (
-                      <>
-                        Text: <strong>{filter.value}</strong>
-                      </>
-                    ) : (
-                      <>
-                        {filterCategory && filterCategory.getChipLabel
-                          ? filterCategory.getChipLabel(filter)
-                          : filter.type}
-                        :{" "}
-                        <strong>
-                          {filterCategory && filterCategory.getChipValue
-                            ? filterCategory.getChipValue(filter)
-                            : filter.label || filter.value}
-                        </strong>
-                      </>
-                    )
-                  }
-                  onDelete={() => {
-                    dispatch({
-                      type: Types.RemoveFilter,
-                      payload: { index },
-                    });
-                  }}
-                  className={classes.chip}
-                />
-              </li>
+              <Chip
+                key={index}
+                variant="outlined"
+                label={
+                  filter.type === "TEXT" ? (
+                    <>
+                      Text: <strong>{filter.value}</strong>
+                    </>
+                  ) : (
+                    <>
+                      {filterCategory && filterCategory.getChipLabel
+                        ? filterCategory.getChipLabel(filter)
+                        : filter.type}
+                      :{" "}
+                      <strong>
+                        {filterCategory && filterCategory.getChipValue
+                          ? filterCategory.getChipValue(filter)
+                          : filter.label || filter.value}
+                      </strong>
+                    </>
+                  )
+                }
+                onDelete={() => {
+                  dispatch({
+                    type: Types.RemoveFilter,
+                    payload: { index },
+                  });
+                }}
+                className={classes.chip}
+              />
             );
           })}
-        </Paper>
+        </>
       )}
       <Autocomplete
         id="filter-category"
@@ -422,7 +428,7 @@ const Filter: FC<IOwnProps> = ({
           dispatch({ type: Types.ToggleOpen, payload: { open: false } });
         }}
       />
-    </>
+    </div>
   );
 };
 
