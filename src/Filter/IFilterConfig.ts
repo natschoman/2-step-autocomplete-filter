@@ -1,3 +1,8 @@
+export interface IOption { 
+  label: string; 
+  value: any 
+}
+
 export interface IFilterCategory {
   /**
    * The type of the filter, anything but 'TEXT' since this is used for freesolo.
@@ -14,11 +19,15 @@ export interface IFilterCategory {
   /**
    * The available options if this filter category is selected, not needed if only freesolo or for 'DATE' or 'DATE_RANGE'
    */
-  options?: Array<{ label: string; value: any }>;
+  options?: Array<IOption>;
   /**
    * An optional function for returning the label of the option, if ommited the label attribute is used.
    */
-  getOptionLabel?: (option: { label: string; value: any }) => string;
+  getOptionLabel?: (option: IOption) => string;
+  /**
+   * 
+   */
+  fetchOptions?: (input: string) => Promise<Array<IOption>> | Array<IOption>;
   /**
    * Possibility to enter free text in this filter category.
    */

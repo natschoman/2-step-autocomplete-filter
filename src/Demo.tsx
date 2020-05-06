@@ -1,10 +1,52 @@
 /* eslint-disable no-use-before-define */
 import React, { useState } from "react";
 import Filter from "./Filter/Filter";
-import { IAppliedFilter } from "./Filter/IFilterConfig";
+import { IAppliedFilter, IOption } from "./Filter/IFilterConfig";
+import { stations } from "./stations";
+
+// function sleep(delay = 0) {
+//   return new Promise((resolve) => {
+//     setTimeout(resolve, delay);
+//   });
+// }
+
+function simulateAsyncCall(userInput: string): Promise<Array<IOption>> {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const filteredStations = stations
+        .filter(
+          (station) =>
+            station.name.toLowerCase().indexOf(userInput.toLowerCase()) === 0
+        )
+        .slice(0, 10)
+        .map((station) => ({ value: station.name, label: station.name }));
+
+      resolve(filteredStations);
+    }, 300);
+  });
+}
 
 const Demo = () => {
   const [activeFilters, setActiveFilters] = useState<Array<IAppliedFilter>>([]);
+
+  const handleFetchOptionsFromAsync = async (userInput: string) => {
+    console.log("handleFetchOptionsFromAsync", userInput);
+    const result = await simulateAsyncCall(userInput);
+    return result;
+  };
+
+  const handleFetchOptionsToSync = (userInput: string) => {
+    console.log("handleFetchOptionsToSync", userInput);
+
+    const filteredStations = stations
+      .filter(
+        (station) =>
+          station.name.toLowerCase().indexOf(userInput.toLowerCase()) === 0
+      )
+      .slice(0, 10)
+      .map((station) => ({ value: station.name, label: station.name }));
+    return filteredStations;
+  };
 
   return (
     <div>
@@ -17,12 +59,13 @@ const Demo = () => {
           {
             type: "FROM",
             label: "From",
-            options: [
-              { label: "Wien", value: "vienna" },
-              { label: "Salzburg", value: "salzburg" },
-              { label: "Linz", value: "linz" },
-            ],
+            options: stations
+              .slice(0, 10)
+              .map((station) => ({ label: station.name, value: station.name })),
+            fetchOptions: handleFetchOptionsFromAsync,
+
             freeSolo: true,
+
             getChipLabel: (appliedFilter) => appliedFilter.type.toUpperCase(),
             getChipValue: (appliedFilter) =>
               appliedFilter.value.toString().toUpperCase(),
@@ -30,12 +73,21 @@ const Demo = () => {
           {
             type: "TO",
             label: "To",
-            options: [
-              { label: "Wien2", value: "vienna2" },
-              { label: "Salzburg2", value: "salzburg2" },
-              { label: "Linz2", value: "linz2" },
-            ],
+            options: [],
             getOptionLabel: (option) => option.label.toUpperCase(),
+            fetchOptions: handleFetchOptionsToSync,
+
+            freeSolo: true,
+          },
+          {
+            type: "LOT_OF_DATA",
+            label: "LotOfData",
+            options: stations.map((station) => ({
+              value: station.name,
+              label: station.name,
+            })),
+            getOptionLabel: (option) => option.label.toUpperCase(),
+
             freeSolo: true,
           },
           {

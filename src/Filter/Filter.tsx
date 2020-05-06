@@ -3,8 +3,10 @@ import React, { FC, useReducer, useEffect } from "react";
 import { createStyles, makeStyles, Theme } from "@material-ui/core/styles";
 import TextField from "@material-ui/core/TextField";
 import Autocomplete from "@material-ui/lab/Autocomplete";
-import { IFilterCategory, IAppliedFilter } from "./IFilterConfig";
+import { IFilterCategory, IAppliedFilter, IOption } from "./IFilterConfig";
 import { Chip } from "@material-ui/core";
+import parse from "autosuggest-highlight/parse";
+import match from "autosuggest-highlight/match";
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -30,6 +32,9 @@ interface IOwnProps {
    * Placeholder on focused field with no filter-category selected.
    */
   inputSelectFilterTypeText: string;
+  /**
+   * Array of filter categories for first step selection.
+   */
   filterCategories: Array<IFilterCategory>;
   /**
    * Possibility to enter free text as a filter - its type is then 'TEXT'
@@ -39,12 +44,9 @@ interface IOwnProps {
    * Text shown if no option with entered value is found.
    */
   noOptionsText?: string;
-
-  // filterCategories: { [key: string]: IFilter };
-  // onMenuBlur?: (filters: any) => any;
-  // onFilterTypeSelect?: (filters: any) => any;
-  // onFilterValueSelect?: (filters: any) => any;
-  // onFilterRemove?: (filters: any) => any;
+  /**
+   * Callback for changing of filter - passes current filters as parameter.
+   */
   onFilterChange?: (filters: Array<IAppliedFilter>) => any;
 }
 
@@ -70,6 +72,8 @@ export enum Types {
   SetInputLabel = "SET_INPUT_LABEL",
   ToggleOpen = "TOGGLE_OPEN",
   ResetFilter = "RESET_FILTER",
+
+  SetFetchedOptions = "SET_FETCHED_OPTIONS",
 }
 
 type ActionPayload = {
@@ -98,6 +102,9 @@ type ActionPayload = {
   [Types.RemoveFilter]: {
     index: number;
   };
+  [Types.SetFetchedOptions]: {
+    options: Array<IOption>;
+  };
 };
 
 export type FilterActions = ActionMap<ActionPayload>[keyof ActionMap<
@@ -112,6 +119,7 @@ interface IState {
   inputValue: string;
   open: boolean;
   forceOpen: boolean | null;
+  options: Array<IOption> | null;
 }
 
 function reducer(state: IState, action: FilterActions) {
@@ -132,6 +140,7 @@ function reducer(state: IState, action: FilterActions) {
         inputValue: "",
         open: true,
         forceOpen: true,
+        options: [],
       };
 
     case Types.SelectFilterCategory:
@@ -145,6 +154,12 @@ function reducer(state: IState, action: FilterActions) {
         inputValue: "",
         open: true,
         forceOpen: true,
+        options:
+          action.payload.filterCategory &&
+          action.payload.filterCategory.options &&
+          action.payload.filterCategory.options.length
+            ? action.payload.filterCategory.options
+            : [],
       };
 
     case Types.AddFilter:
@@ -159,6 +174,7 @@ function reducer(state: IState, action: FilterActions) {
         inputValue: "",
         open: true,
         forceOpen: true,
+        options: [],
       };
 
     case Types.ValueChange:
@@ -198,6 +214,7 @@ function reducer(state: IState, action: FilterActions) {
         inputValue: "",
         activeFilterCategory: null,
         open: false,
+        options: [],
       };
 
     case Types.RemoveFilter:
@@ -207,6 +224,13 @@ function reducer(state: IState, action: FilterActions) {
           (_f, i) => i !== action.payload.index
         ),
       };
+
+    case Types.SetFetchedOptions:
+      return {
+        ...state,
+        options: action.payload.options,
+      };
+
     default:
       return state;
   }
@@ -228,6 +252,7 @@ const Filter: FC<IOwnProps> = ({
     inputValue: "",
     open: false,
     forceOpen: null,
+    options: [],
   });
 
   useEffect(() => {
@@ -235,6 +260,27 @@ const Filter: FC<IOwnProps> = ({
       onFilterChange(state.appliedFilter);
     }
   }, [onFilterChange, state.appliedFilter]);
+
+  useEffect(() => {
+    async function getOptions() {
+      if (
+        state.activeFilterCategory &&
+        state.activeFilterCategory.fetchOptions
+      ) {
+        const result = await state.activeFilterCategory.fetchOptions(
+          state.inputValue
+        );
+        dispatch({
+          type: Types.SetFetchedOptions,
+          payload: { options: result },
+        });
+      }
+    }
+
+    if (state.activeFilterCategory && state.activeFilterCategory.fetchOptions) {
+      getOptions();
+    }
+  }, [state.activeFilterCategory, state.inputValue]);
 
   const handleInputOpen = () => {
     dispatch({
@@ -301,11 +347,11 @@ const Filter: FC<IOwnProps> = ({
         </>
       )}
       <Autocomplete
+        // autoHighlight
+        debug
         id="filter-category"
         options={
-          state.activeFilterCategory
-            ? (state.activeFilterCategory.options as any)
-            : (filterCategories as any)
+          state.activeFilterCategory ? state.options : (filterCategories as any)
         }
         getOptionLabel={
           state.activeFilterCategory
@@ -316,7 +362,10 @@ const Filter: FC<IOwnProps> = ({
                   ? state.activeFilterCategory.getOptionLabel(option)
                   : option.label;
               }
-            : (filterConfig: any) => filterConfig.label as string
+            : (filterConfig: any) =>
+                filterConfig && filterConfig.label
+                  ? (filterConfig.label as string)
+                  : ""
         }
         style={{ width: 300 }}
         openOnFocus
@@ -342,10 +391,10 @@ const Filter: FC<IOwnProps> = ({
         )}
         value={state.value as any}
         onChange={(event: object, value: any, reason: string) => {
-          console.log("onChange filter-category autocomplete");
-          console.log(event);
-          console.log(value);
-          console.log(reason);
+          // console.log("onChange filter-category autocomplete");
+          // console.log(event);
+          // console.log(value);
+          // console.log(reason);
           dispatch({ type: Types.ValueChange, payload: { value } });
 
           switch (reason) {
@@ -392,8 +441,6 @@ const Filter: FC<IOwnProps> = ({
                   payload: { text: value },
                 });
               } else {
-                console.log("##########");
-
                 dispatch({
                   type: Types.AddFilter,
                   payload: {
@@ -420,12 +467,32 @@ const Filter: FC<IOwnProps> = ({
         }}
         open={state.open}
         onOpen={() => {
-          console.log("onOpen");
+          // console.log("onOpen");
           dispatch({ type: Types.ToggleOpen, payload: { open: true } });
         }}
         onClose={() => {
-          console.log("onClose");
+          // console.log("onClose");
           dispatch({ type: Types.ToggleOpen, payload: { open: false } });
+        }}
+        renderOption={(option, { inputValue }) => {
+          const matches = match(option.label, inputValue);
+          const parts = parse(option.label, matches);
+
+          return (
+            <div>
+              {parts.map((part, index) => (
+                <span
+                  key={index}
+                  style={{
+                    fontWeight: part.highlight ? 700 : 400,
+                    color: part.highlight ? "red" : "initial",
+                  }}
+                >
+                  {part.text}
+                </span>
+              ))}
+            </div>
+          );
         }}
       />
     </div>
