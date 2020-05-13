@@ -39,11 +39,6 @@ export interface IFilterCategory {
 
   getChipLabel?: (appliedFilter: IAppliedFilter) => string;
   getChipValue?: (appliedFilter: IAppliedFilter) => string;
-
-  // renderSuggestion: (item: string) => string;
-  // buildSuggestions?: (searchTerm: string) => any[];
-  // fetchSuggestions?: (filter: any, item: any) => any;
-  // asyncSuggestions?: Array<{ key: string; value: any }>;
 }
 
 export interface IAppliedFilter {

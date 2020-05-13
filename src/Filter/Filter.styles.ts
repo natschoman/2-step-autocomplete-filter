@@ -16,24 +16,29 @@ export const useStyles = makeStyles((theme: Theme) =>
   })
 );
 
-export const FilterTextField = withStyles({
+
+
+
+export const FilterTextField = withStyles((theme: Theme) => createStyles({
   root: {
     "& label.Mui-focused": {
-      color: "green",
+      // color: "green",
+      color: theme.palette.grey[900]
     },
     "& .MuiInput-underline:after": {
       borderBottomColor: "green",
     },
     "& .MuiOutlinedInput-root": {
       "& fieldset": {
-        borderColor: "red",
+        // borderColor: "red",
+        border: "none"
       },
       "&:hover fieldset": {
-        borderColor: "yellow",
+        // borderColor: "yellow",
       },
       "&.Mui-focused fieldset": {
-        borderColor: "green",
+        // borderColor: "green",
       },
     },
   },
-})(TextField);
+}))(TextField);

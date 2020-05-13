@@ -4,12 +4,6 @@ import Filter from "./Filter/Filter";
 import { IAppliedFilter, IOption } from "./Filter/IFilterConfig";
 import { stations } from "./stations";
 
-// function sleep(delay = 0) {
-//   return new Promise((resolve) => {
-//     setTimeout(resolve, delay);
-//   });
-// }
-
 const demoFilters = [
   {
     type: "FROM",
@@ -78,16 +72,12 @@ const Demo = () => {
     return filteredStations;
   };
 
-  const handleSetSavedFilter = () => {
-    setActiveFilters(demoFilters);
-  };
-
   return (
     <div>
       <Filter
         ref={childRef}
-        inputPlaceholder="Filter"
-        inputSelectFilterTypeText="Select Category"
+        inputPlaceholder="+ Filter"
+        inputSelectFilterTypeText="Select Category: "
         freeSolo={true}
         noOptionsText="Keine Kategorie gefunden"
         defaultFilters={defaultFilters}
@@ -150,17 +140,10 @@ const Demo = () => {
           onClick={() => {
             const ref = childRef.current;
             // @ts-ignore
-
             ref.setFilters(demoFilters);
-            // ref.getAlert();
           }}
         >
-          Click
-        </button>
-      </div>
-      <div>
-        <button type="button" onClick={handleSetSavedFilter}>
-          Set Saved Filter
+          Set Filter from Outside
         </button>
       </div>
       <div>

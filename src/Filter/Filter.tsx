@@ -6,12 +6,16 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import Autocomplete from "@material-ui/lab/Autocomplete";
-import { IFilterCategory, IAppliedFilter, IOption } from "./IFilterConfig";
-import { Chip } from "@material-ui/core";
+import Autocomplete, {
+  createFilterOptions,
+} from "@material-ui/lab/Autocomplete";
+import { Chip, InputAdornment } from "@material-ui/core";
 import parse from "autosuggest-highlight/parse";
 import match from "autosuggest-highlight/match";
+import { IFilterCategory, IAppliedFilter, IOption } from "./IFilterConfig";
 import { useStyles, FilterTextField } from "./Filter.styles";
+
+const filter = createFilterOptions<any>();
 
 type ActionMap<M extends { [index: string]: any }> = {
   [Key in keyof M]: M[Key] extends undefined
@@ -24,20 +28,17 @@ type ActionMap<M extends { [index: string]: any }> = {
       };
 };
 
-export enum Types {
+enum Types {
   AddFreeTextFilter = "ADD_FREE_TEXT_FILTER",
   SelectFilterCategory = "SELECT_FILTER_CATEGORY",
   AddFilter = "ADD_FILTER",
   RemoveFilter = "REMOVE_FILTER",
-
   ValueChange = "VALUE_CHANGE",
   InputValueChange = "INPUT_VALUE_CHANGE",
   SetInputLabel = "SET_INPUT_LABEL",
   ToggleOpen = "TOGGLE_OPEN",
   ResetFilterInput = "RESET_FILTER_INPUT",
-
   SetFilters = "SET_FILTER",
-
   SetFetchedOptions = "SET_FETCHED_OPTIONS",
 }
 
@@ -68,7 +69,7 @@ type ActionPayload = {
     index: number;
   };
   [Types.SetFilters]: {
-    filter: any; //Array<IAppliedFilter> | [] | null;
+    filter: any; //Array<IAppliedFilter> | null;
   };
   [Types.SetFetchedOptions]: {
     options: Array<IOption>;
@@ -105,7 +106,7 @@ function reducer(state: IState, action: FilterActions) {
         ...state,
         activeFilterCategory: action.payload.filterCategory,
         inputLabel: action.payload.filterCategory
-          ? action.payload.filterCategory.label
+          ? `${action.payload.filterCategory.label}:`
           : state.inputLabel,
         value: "",
         inputValue: "",
@@ -369,25 +370,29 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
         </>
       )}
       <Autocomplete
+        selectOnFocus
+        clearOnBlur
+        disableClearable
         debug
         id="filter-category"
         options={
           state.activeFilterCategory ? state.options : (filterCategories as any)
         }
-        getOptionLabel={
-          state.activeFilterCategory
-            ? (option) => {
-                return typeof option === "object" &&
-                  state.activeFilterCategory &&
-                  state.activeFilterCategory.getOptionLabel
-                  ? state.activeFilterCategory.getOptionLabel(option)
-                  : option.label;
-              }
-            : (filterConfig: any) =>
-                filterConfig && filterConfig.label
-                  ? (filterConfig.label as string)
-                  : ""
-        }
+        filterOptions={(options, params) => {
+          const filtered = filter(options, params) as any;
+
+          // Suggest the creation of a new value
+          if (params.inputValue !== "") {
+            filtered.push({
+              isFreeSolo: true,
+              inputLabel: `Add "${params.inputValue}"`,
+              label: params.inputValue,
+              value: params.inputValue,
+            });
+          }
+
+          return filtered;
+        }}
         style={{ width: 300 }}
         openOnFocus
         freeSolo={
@@ -404,10 +409,17 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
           <FilterTextField
             id="filter-category-input"
             {...params}
-            label={state.inputLabel}
             variant="outlined"
             onFocus={handleInputOpen}
             onBlur={handleInputClose}
+            InputProps={{
+              ...params.InputProps,
+              startAdornment: (
+                <InputAdornment position="start">
+                  {state.inputLabel}
+                </InputAdornment>
+              ),
+            }}
           />
         )}
         value={state.value as any}
@@ -417,10 +429,17 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
           switch (reason) {
             case "select-option":
               if (!state.activeFilterCategory) {
-                dispatch({
-                  type: Types.SelectFilterCategory,
-                  payload: { filterCategory: value },
-                });
+                if (value.isFreeSolo) {
+                  dispatch({
+                    type: Types.AddFreeTextFilter,
+                    payload: { text: value.value },
+                  });
+                } else {
+                  dispatch({
+                    type: Types.SelectFilterCategory,
+                    payload: { filterCategory: value },
+                  });
+                }
               } else {
                 dispatch({
                   type: Types.AddFilter,
@@ -486,10 +505,30 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
         onClose={() => {
           dispatch({ type: Types.ToggleOpen, payload: { open: false } });
         }}
-        renderOption={(option, { inputValue }) => {
+        getOptionLabel={(option) => {
+          if (option.isFreeSolo) {
+            return option.inputLabel;
+          }
+          if (state.activeFilterCategory) {
+            return typeof option === "object" &&
+              state.activeFilterCategory &&
+              state.activeFilterCategory.getOptionLabel
+              ? state.activeFilterCategory.getOptionLabel(option)
+              : option.label;
+          }
+          const filterConfig = option;
+          if (filterConfig && filterConfig.label) {
+            return filterConfig.label as string;
+          } else {
+            return "";
+          }
+        }}
+        renderOption={(option, state) => {
+          const { inputValue } = state;
+          if (option.isFreeSolo) return option.inputLabel;
+
           const matches = match(option.label, inputValue);
           const parts = parse(option.label, matches);
-
           return (
             <div>
               {parts.map((part, index) => (
@@ -497,7 +536,7 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
                   key={index}
                   style={{
                     fontWeight: part.highlight ? 700 : 400,
-                    color: part.highlight ? "red" : "initial",
+                    // color: part.highlight ? "red" : "initial",
                   }}
                 >
                   {part.text}
@@ -506,6 +545,7 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
             </div>
           );
         }}
+        popupIcon={null}
       />
     </div>
   );
