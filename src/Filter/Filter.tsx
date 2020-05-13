@@ -492,14 +492,20 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
         filterOptions={(options, params) => {
           const filtered = filter(options, params) as any;
 
-          // Suggest the creation of a new value
-          if (params.inputValue !== "") {
-            filtered.push({
-              isFreeSolo: true,
-              inputLabel: `Add "${params.inputValue}"`,
-              label: params.inputValue,
-              value: params.inputValue,
-            });
+          if (
+            state.activeFilterCategory
+              ? state.activeFilterCategory.freeSolo || false
+              : freeSolo
+          ) {
+            // Suggest the creation of a new value, only if freeSolo is set
+            if (params.inputValue !== "") {
+              filtered.push({
+                isFreeSolo: true,
+                inputLabel: `Add "${params.inputValue}"`,
+                label: params.inputValue,
+                value: params.inputValue,
+              });
+            }
           }
 
           return filtered;
