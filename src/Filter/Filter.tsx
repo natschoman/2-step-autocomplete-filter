@@ -374,25 +374,6 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
         clearOnBlur
         disableClearable
         debug
-        id="filter-category"
-        options={
-          state.activeFilterCategory ? state.options : (filterCategories as any)
-        }
-        filterOptions={(options, params) => {
-          const filtered = filter(options, params) as any;
-
-          // Suggest the creation of a new value
-          if (params.inputValue !== "") {
-            filtered.push({
-              isFreeSolo: true,
-              inputLabel: `Add "${params.inputValue}"`,
-              label: params.inputValue,
-              value: params.inputValue,
-            });
-          }
-
-          return filtered;
-        }}
         style={{ width: 300 }}
         openOnFocus
         freeSolo={
@@ -405,23 +386,6 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
             ? state.activeFilterCategory.noOptionsText || "No options"
             : noOptionsText || "No options"
         }
-        renderInput={(params) => (
-          <FilterTextField
-            id="filter-category-input"
-            {...params}
-            variant="outlined"
-            onFocus={handleInputOpen}
-            onBlur={handleInputClose}
-            InputProps={{
-              ...params.InputProps,
-              startAdornment: (
-                <InputAdornment position="start">
-                  {state.inputLabel}
-                </InputAdornment>
-              ),
-            }}
-          />
-        )}
         value={state.value as any}
         onChange={(event: object, value: any, reason: string) => {
           dispatch({ type: Types.ValueChange, payload: { value } });
@@ -492,6 +456,23 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
           }
         }}
         inputValue={state.inputValue}
+        renderInput={(params) => (
+          <FilterTextField
+            id="filter-category-input"
+            {...params}
+            variant="outlined"
+            onFocus={handleInputOpen}
+            onBlur={handleInputClose}
+            InputProps={{
+              ...params.InputProps,
+              startAdornment: (
+                <InputAdornment position="start">
+                  {state.inputLabel}
+                </InputAdornment>
+              ),
+            }}
+          />
+        )}
         onInputChange={(event: object, newInputValue: any) => {
           dispatch({
             type: Types.InputValueChange,
@@ -504,6 +485,24 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
         }}
         onClose={() => {
           dispatch({ type: Types.ToggleOpen, payload: { open: false } });
+        }}
+        options={
+          state.activeFilterCategory ? state.options : (filterCategories as any)
+        }
+        filterOptions={(options, params) => {
+          const filtered = filter(options, params) as any;
+
+          // Suggest the creation of a new value
+          if (params.inputValue !== "") {
+            filtered.push({
+              isFreeSolo: true,
+              inputLabel: `Add "${params.inputValue}"`,
+              label: params.inputValue,
+              value: params.inputValue,
+            });
+          }
+
+          return filtered;
         }}
         getOptionLabel={(option) => {
           if (option.isFreeSolo) {
