@@ -1,54 +1,17 @@
 /* eslint-disable no-use-before-define */
-import React, { FC, useReducer, useEffect } from "react";
-import { createStyles, makeStyles, Theme } from "@material-ui/core/styles";
-import TextField from "@material-ui/core/TextField";
+import React, {
+  FC,
+  useReducer,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import Autocomplete from "@material-ui/lab/Autocomplete";
 import { IFilterCategory, IAppliedFilter, IOption } from "./IFilterConfig";
 import { Chip } from "@material-ui/core";
 import parse from "autosuggest-highlight/parse";
 import match from "autosuggest-highlight/match";
-
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    root: {
-      display: "flex",
-      flexWrap: "wrap",
-      alignItems: "center",
-      padding: theme.spacing(0.5),
-      margin: 0,
-    },
-    chip: {
-      margin: theme.spacing(0.5),
-    },
-  })
-);
-
-interface IOwnProps {
-  /**
-   * Placeholder on empty field with no focus.
-   */
-  inputPlaceholder: string;
-  /**
-   * Placeholder on focused field with no filter-category selected.
-   */
-  inputSelectFilterTypeText: string;
-  /**
-   * Array of filter categories for first step selection.
-   */
-  filterCategories: Array<IFilterCategory>;
-  /**
-   * Possibility to enter free text as a filter - its type is then 'TEXT'
-   */
-  freeSolo?: boolean;
-  /**
-   * Text shown if no option with entered value is found.
-   */
-  noOptionsText?: string;
-  /**
-   * Callback for changing of filter - passes current filters as parameter.
-   */
-  onFilterChange?: (filters: Array<IAppliedFilter>) => any;
-}
+import { useStyles, FilterTextField } from "./Filter.styles";
 
 type ActionMap<M extends { [index: string]: any }> = {
   [Key in keyof M]: M[Key] extends undefined
@@ -71,7 +34,9 @@ export enum Types {
   InputValueChange = "INPUT_VALUE_CHANGE",
   SetInputLabel = "SET_INPUT_LABEL",
   ToggleOpen = "TOGGLE_OPEN",
-  ResetFilter = "RESET_FILTER",
+  ResetFilterInput = "RESET_FILTER_INPUT",
+
+  SetFilters = "SET_FILTER",
 
   SetFetchedOptions = "SET_FETCHED_OPTIONS",
 }
@@ -98,9 +63,12 @@ type ActionPayload = {
   [Types.ToggleOpen]: {
     open: boolean;
   };
-  [Types.ResetFilter]: {};
+  [Types.ResetFilterInput]: {};
   [Types.RemoveFilter]: {
     index: number;
+  };
+  [Types.SetFilters]: {
+    filter: any; //Array<IAppliedFilter> | [] | null;
   };
   [Types.SetFetchedOptions]: {
     options: Array<IOption>;
@@ -110,17 +78,6 @@ type ActionPayload = {
 export type FilterActions = ActionMap<ActionPayload>[keyof ActionMap<
   ActionPayload
 >];
-
-interface IState {
-  inputLabel: string;
-  activeFilterCategory: IFilterCategory | null;
-  appliedFilter: Array<IAppliedFilter>;
-  value: string | null;
-  inputValue: string;
-  open: boolean;
-  forceOpen: boolean | null;
-  options: Array<IOption> | null;
-}
 
 function reducer(state: IState, action: FilterActions) {
   switch (action.type) {
@@ -207,7 +164,7 @@ function reducer(state: IState, action: FilterActions) {
         open: action.payload.open,
       };
 
-    case Types.ResetFilter:
+    case Types.ResetFilterInput:
       return {
         ...state,
         value: "",
@@ -225,6 +182,12 @@ function reducer(state: IState, action: FilterActions) {
         ),
       };
 
+    case Types.SetFilters:
+      return {
+        ...state,
+        appliedFilter: action.payload.filter,
+      };
+
     case Types.SetFetchedOptions:
       return {
         ...state,
@@ -236,24 +199,85 @@ function reducer(state: IState, action: FilterActions) {
   }
 }
 
-const Filter: FC<IOwnProps> = ({
-  inputPlaceholder,
-  inputSelectFilterTypeText,
-  freeSolo = false,
-  noOptionsText,
-  filterCategories,
-  onFilterChange,
-}) => {
+interface IOwnProps {
+  /**
+   * Placeholder on empty field with no focus.
+   */
+  inputPlaceholder: string;
+  /**
+   * Placeholder on focused field with no filter-category selected.
+   */
+  inputSelectFilterTypeText: string;
+  /**
+   * Array of filter categories for first step selection.
+   */
+  filterCategories: Array<IFilterCategory>;
+  /**
+   * Possibility to enter free text as a filter - its type is then 'TEXT'
+   */
+  freeSolo?: boolean;
+  /**
+   * Text shown if no option with entered value is found.
+   */
+  noOptionsText?: string;
+  /**
+   * Default filters for initial rendering.
+   */
+  defaultFilters?: Array<IAppliedFilter>;
+  /**
+   * Callback for changing of filter - passes current filters as parameter.
+   */
+  onFilterChange?: (filters: Array<IAppliedFilter>) => any;
+  /**
+   * Ref for setFilters function, ref.setFilters(filters: Array<IAppliedFilter>) => void
+   */
+  ref?: any;
+}
+
+interface IState {
+  inputLabel: string;
+  activeFilterCategory: IFilterCategory | null;
+  appliedFilter: Array<IAppliedFilter>;
+  value: string | null;
+  inputValue: string;
+  open: boolean;
+  forceOpen: boolean | null;
+  options: Array<IOption> | null;
+}
+
+const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
+  const classes = useStyles();
+
+  const {
+    inputPlaceholder,
+    inputSelectFilterTypeText,
+    freeSolo = false,
+    noOptionsText,
+    filterCategories,
+    onFilterChange,
+    defaultFilters = [],
+  } = props;
+
   const [state, dispatch] = useReducer(reducer, {
     inputLabel: inputPlaceholder,
     activeFilterCategory: null,
-    appliedFilter: [],
+    appliedFilter:
+      defaultFilters && defaultFilters.length ? defaultFilters : [],
     value: "",
     inputValue: "",
     open: false,
     forceOpen: null,
     options: [],
   });
+
+  // The component instance will be extended
+  // with whatever you return from the callback passed
+  // as the second argument
+  useImperativeHandle(ref, () => ({
+    setFilters(newFilter: any) {
+      dispatch({ type: Types.SetFilters, payload: { filter: newFilter } });
+    },
+  }));
 
   useEffect(() => {
     if (onFilterChange) {
@@ -295,12 +319,10 @@ const Filter: FC<IOwnProps> = ({
       payload: { inputLabel: inputPlaceholder },
     });
     dispatch({
-      type: Types.ResetFilter,
+      type: Types.ResetFilterInput,
       payload: {},
     });
   };
-
-  const classes = useStyles();
 
   return (
     <div className={classes.root}>
@@ -347,7 +369,6 @@ const Filter: FC<IOwnProps> = ({
         </>
       )}
       <Autocomplete
-        // autoHighlight
         debug
         id="filter-category"
         options={
@@ -380,7 +401,7 @@ const Filter: FC<IOwnProps> = ({
             : noOptionsText || "No options"
         }
         renderInput={(params) => (
-          <TextField
+          <FilterTextField
             id="filter-category-input"
             {...params}
             label={state.inputLabel}
@@ -391,10 +412,6 @@ const Filter: FC<IOwnProps> = ({
         )}
         value={state.value as any}
         onChange={(event: object, value: any, reason: string) => {
-          // console.log("onChange filter-category autocomplete");
-          // console.log(event);
-          // console.log(value);
-          // console.log(reason);
           dispatch({ type: Types.ValueChange, payload: { value } });
 
           switch (reason) {
@@ -457,9 +474,6 @@ const Filter: FC<IOwnProps> = ({
         }}
         inputValue={state.inputValue}
         onInputChange={(event: object, newInputValue: any) => {
-          // console.log("onInputChange filter-category autocomplete");
-          // console.log(event);
-          // console.log(newInputValue);
           dispatch({
             type: Types.InputValueChange,
             payload: { inputValue: newInputValue },
@@ -467,11 +481,9 @@ const Filter: FC<IOwnProps> = ({
         }}
         open={state.open}
         onOpen={() => {
-          // console.log("onOpen");
           dispatch({ type: Types.ToggleOpen, payload: { open: true } });
         }}
         onClose={() => {
-          // console.log("onClose");
           dispatch({ type: Types.ToggleOpen, payload: { open: false } });
         }}
         renderOption={(option, { inputValue }) => {
@@ -497,6 +509,6 @@ const Filter: FC<IOwnProps> = ({
       />
     </div>
   );
-};
+});
 
 export default Filter;

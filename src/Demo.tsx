@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define */
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Filter from "./Filter/Filter";
 import { IAppliedFilter, IOption } from "./Filter/IFilterConfig";
 import { stations } from "./stations";
@@ -9,6 +9,32 @@ import { stations } from "./stations";
 //     setTimeout(resolve, delay);
 //   });
 // }
+
+const demoFilters = [
+  {
+    type: "FROM",
+    value: "ALMAGRO",
+    label: "ALMAGRO",
+  },
+  {
+    type: "TO",
+    value: "Abschlag",
+    label: "Abschlag",
+  },
+  {
+    type: "TEXT",
+    label: "Test",
+    value: "Test",
+  },
+];
+
+const defaultFilters = [
+  {
+    type: "FROM",
+    value: "ALMAGRO",
+    label: "ALMAGRO",
+  },
+];
 
 function simulateAsyncCall(userInput: string): Promise<Array<IOption>> {
   return new Promise((resolve, reject) => {
@@ -27,7 +53,11 @@ function simulateAsyncCall(userInput: string): Promise<Array<IOption>> {
 }
 
 const Demo = () => {
-  const [activeFilters, setActiveFilters] = useState<Array<IAppliedFilter>>([]);
+  const [activeFilters, setActiveFilters] = useState<Array<IAppliedFilter>>(
+    defaultFilters
+  );
+
+  const childRef = useRef();
 
   const handleFetchOptionsFromAsync = async (userInput: string) => {
     console.log("handleFetchOptionsFromAsync", userInput);
@@ -48,13 +78,19 @@ const Demo = () => {
     return filteredStations;
   };
 
+  const handleSetSavedFilter = () => {
+    setActiveFilters(demoFilters);
+  };
+
   return (
     <div>
       <Filter
+        ref={childRef}
         inputPlaceholder="Filter"
         inputSelectFilterTypeText="Select Category"
         freeSolo={true}
         noOptionsText="Keine Kategorie gefunden"
+        defaultFilters={defaultFilters}
         filterCategories={[
           {
             type: "FROM",
@@ -109,6 +145,24 @@ const Demo = () => {
           setActiveFilters(filters);
         }}
       />
+      <div>
+        <button
+          onClick={() => {
+            const ref = childRef.current;
+            // @ts-ignore
+
+            ref.setFilters(demoFilters);
+            // ref.getAlert();
+          }}
+        >
+          Click
+        </button>
+      </div>
+      <div>
+        <button type="button" onClick={handleSetSavedFilter}>
+          Set Saved Filter
+        </button>
+      </div>
       <div>
         <h4>Active Filters:</h4>
         <pre>{JSON.stringify(activeFilters, null, " ")}</pre>
