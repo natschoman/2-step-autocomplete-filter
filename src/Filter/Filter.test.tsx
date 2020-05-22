@@ -1,15 +1,7 @@
-import React, { FC } from "react";
+import React from "react";
 import { Filter } from "./Filter";
 import { render } from "../../test/test-utils";
-import {
-  fireEvent,
-  queryAllByText,
-  queryByRole,
-  within,
-  queryByTestId,
-  queryAllByTestId,
-  waitFor,
-} from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/extend-expect";
 
 // https://github.com/mui-org/material-ui/issues/15726
@@ -29,9 +21,11 @@ afterEach(() => {
 
 const props = {
   inputPlaceholder: "+ Filter",
+  textFilterChipLabel: "Free-text",
+  addOptionPrefixText: "Adding",
   inputSelectFilterTypeText: "Select Category:",
   freeSolo: true,
-  noOptionsText: "No Options found.",
+  noOptionsText: "Nothing Found",
   filterCategories: [
     {
       type: "DELIVERED",
@@ -52,17 +46,7 @@ const props = {
 
 describe("<Filter />", () => {
   it("should render properly", () => {
-    const {
-      debug,
-      getAllByText,
-      getByText,
-      queryByText,
-      getByRole,
-      container,
-      getByLabelText,
-      getByTestId,
-      queryAllByText,
-    } = render(<Filter {...props} />);
+    const { queryByText } = render(<Filter {...props} />);
 
     // Text "+ Filter text" on empty input
     expect(queryByText(props.inputPlaceholder)).toBeTruthy();
@@ -76,7 +60,6 @@ describe("<Filter />", () => {
       container,
       getByTestId,
       getAllByTestId,
-      queryByTestId,
       queryAllByTestId,
     } = render(<Filter {...props} />);
 
@@ -88,12 +71,11 @@ describe("<Filter />", () => {
       ).toHaveTextContent(expected);
     }
 
-    // const filterTextInput = getByRole("textbox");
     const filterTextInput = getByTestId("filter-text-input");
     filterTextInput.focus();
 
     // Text "Select Category:" on focused input
-    expect(queryByText(props.inputSelectFilterTypeText)).toBeTruthy();
+    expect(queryByText(props.inputSelectFilterTypeText)).not.toBeNull();
     expect(queryByText(props.inputPlaceholder)).toBeFalsy();
 
     fireEvent.change(document.activeElement, { target: { value: freeText } });
@@ -101,25 +83,29 @@ describe("<Filter />", () => {
     expect(getByRole("listbox").children.length).toBe(2);
 
     // List should be rendered
-    expect(getByRole("listbox").children[0]).toHaveTextContent("Delivered");
+    expect(getByRole("listbox").children[0]).toHaveTextContent(
+      props.filterCategories[0].label
+    );
     expect(getByRole("listbox").children[1]).toHaveTextContent(
-      `Add "${freeText}"`
+      `${props.addOptionPrefixText} "${freeText}"`
     );
 
     fireEvent.keyDown(document.activeElement, { key: "ArrowDown" });
     fireEvent.keyDown(document.activeElement, { key: "ArrowDown" });
-    checkHighlightIs('Add "deli"');
+    checkHighlightIs(`${props.addOptionPrefixText} "${freeText}"`);
 
     fireEvent.keyDown(document.activeElement, { key: "Enter" });
 
     // chip should be there
     expect(getAllByTestId("filter-chip").length).toBe(1);
-    expect(getByTestId("filter-chip")).toHaveTextContent("Text: deli");
+    expect(getByTestId("filter-chip")).toHaveTextContent(
+      `${props.textFilterChipLabel}: ${freeText}`
+    );
 
     // onFilterChange should be called
     expect(props.onFilterChange).toBeCalledTimes(1);
     expect(props.onFilterChange).toBeCalledWith([
-      { label: "deli", type: "TEXT", value: "deli" },
+      { label: freeText, type: "TEXT", value: freeText },
     ]);
 
     // delete chip
@@ -131,22 +117,9 @@ describe("<Filter />", () => {
   });
 
   it("should accept category select", () => {
-    const {
-      debug,
-      getAllByText,
-      getByText,
-      queryByText,
-      getByRole,
-      container,
-      getByLabelText,
-      getByTestId,
-      queryAllByText,
-      queryByLabelText,
-      queryByTitle,
-      getAllByTestId,
-      queryByTestId,
-      queryAllByTestId,
-    } = render(<Filter {...props} />);
+    const { queryByText, getByRole, getByTestId, getAllByTestId } = render(
+      <Filter {...props} />
+    );
 
     const freeText = "deli";
 
@@ -160,37 +133,54 @@ describe("<Filter />", () => {
     const filterTextInput = getByTestId("filter-text-input");
     filterTextInput.focus();
 
+    // enter text
     fireEvent.change(document.activeElement, { target: { value: freeText } });
 
+    // move selection with keyboard arrow
     fireEvent.keyDown(document.activeElement, { key: "ArrowDown" });
-    checkHighlightIs("Delivered");
+    checkHighlightIs(props.filterCategories[0].label);
 
+    // select category
     fireEvent.keyDown(document.activeElement, { key: "Enter" });
 
+    const getOptionLabel = props.filterCategories[0].getOptionLabel;
+
+    // check category options (yes and no)
     expect(getByRole("listbox").children.length).toBe(2);
-    expect(getByRole("listbox")).toHaveTextContent("yes");
-    expect(getByRole("listbox")).toHaveTextContent("no");
+    expect(getByRole("listbox")).toHaveTextContent(
+      getOptionLabel(props.filterCategories[0].options[0])
+    );
+    expect(getByRole("listbox")).toHaveTextContent(
+      getOptionLabel(props.filterCategories[0].options[1])
+    );
 
     fireEvent.change(document.activeElement, { target: { value: "YES-X" } });
-    expect(queryByText("No Delivered found")).toBeTruthy();
+    expect(queryByText(props.filterCategories[0].noOptionsText)).toBeTruthy();
 
     fireEvent.change(document.activeElement, { target: { value: "YES" } });
     fireEvent.keyDown(document.activeElement, { key: "ArrowDown" });
-    checkHighlightIs("yes");
+    checkHighlightIs(getOptionLabel(props.filterCategories[0].options[0]));
     fireEvent.keyDown(document.activeElement, { key: "Enter" });
 
     // onFilterChange should be called
     expect(props.onFilterChange).toBeCalledTimes(1);
     expect(props.onFilterChange).toBeCalledWith([
-      { label: "YES", type: "DELIVERED", value: true },
+      {
+        label: props.filterCategories[0].options[0].label,
+        type: props.filterCategories[0].type,
+        value: props.filterCategories[0].options[0].value,
+      },
     ]);
 
     // chip should be there
     expect(getAllByTestId("filter-chip").length).toBe(1);
-    expect(getByTestId("filter-chip")).toHaveTextContent("DELIVERED: YES");
+
+    expect(getByTestId("filter-chip")).toHaveTextContent(
+      `${props.filterCategories[0].type}: ${props.filterCategories[0].options[0].label}`
+    );
   });
 
-  it("should accept category select", async () => {
+  it("should fetch new options on input change", async () => {
     const fromDemo = [
       { label: "A 1", value: "A 1" },
       { label: "A 2", value: "A 2" },
@@ -203,6 +193,18 @@ describe("<Filter />", () => {
       { label: "C 3", value: "C 3" },
     ];
 
+    const getOptionLabel = (option) => option.label.toLowerCase();
+    const getChipLabel = (appliedFilter) => appliedFilter.type.toUpperCase();
+    const getChipValue = (appliedFilter) =>
+      appliedFilter.value.toString().toUpperCase();
+    const fetchOptions = (userInput) =>
+      fromDemo
+        .filter(
+          (value) =>
+            value.label.toLowerCase().indexOf(userInput.toLowerCase()) === 0
+        )
+        .slice(0, 3);
+
     const extendedProps = {
       ...props,
       filterCategories: [
@@ -210,45 +212,19 @@ describe("<Filter />", () => {
           type: "FROM",
           label: "From",
           options: fromDemo.slice(0, 3),
-          fetchOptions: jest.fn((userInput) =>
-            fromDemo
-              .filter(
-                (value) =>
-                  value.label.toLowerCase().indexOf(userInput.toLowerCase()) ===
-                  0
-              )
-              .slice(0, 3)
-          ),
-          getOptionLabel: jest.fn((option) => option.label.toLowerCase()),
+          fetchOptions: jest.fn(fetchOptions),
+          getOptionLabel: jest.fn(getOptionLabel),
           freeSolo: true,
-
-          getChipLabel: jest.fn((appliedFilter) =>
-            appliedFilter.type.toUpperCase()
-          ),
-          getChipValue: jest.fn((appliedFilter) =>
-            appliedFilter.value.toString().toUpperCase()
-          ),
+          getChipLabel: jest.fn(getChipLabel),
+          getChipValue: jest.fn(getChipValue),
         },
         ...props.filterCategories,
       ],
     };
 
-    const {
-      debug,
-      getAllByText,
-      getByText,
-      queryByText,
-      getByRole,
-      container,
-      getByLabelText,
-      getByTestId,
-      queryAllByText,
-      queryByLabelText,
-      queryByTitle,
-      getAllByTestId,
-      queryByTestId,
-      queryAllByTestId,
-    } = render(<Filter {...extendedProps} />);
+    const { getByText, getByRole, getByTestId } = render(
+      <Filter {...extendedProps} />
+    );
 
     const categoryText = "From";
 
@@ -258,12 +234,8 @@ describe("<Filter />", () => {
       ).toHaveTextContent(expected);
     }
 
-    // const filterTextInput = getByRole("textbox");
     const filterTextInput = getByTestId("filter-text-input");
     filterTextInput.focus();
-
-    // console.log("#1 debug: --------");
-    // debug();
 
     fireEvent.change(document.activeElement, {
       target: { value: categoryText },
@@ -274,64 +246,28 @@ describe("<Filter />", () => {
 
     fireEvent.keyDown(document.activeElement, { key: "Enter" });
 
-    // console.log("#2 debug: --------");
-    // debug();
-
-    // check A1 A2 A3
+    // check a1 a2 a3
     expect(getByRole("listbox").children.length).toBe(3);
-    expect(getByRole("listbox")).toHaveTextContent("a 1");
-    expect(getByRole("listbox")).toHaveTextContent("a 2");
-    expect(getByRole("listbox")).toHaveTextContent("a 3");
+    expect(getByRole("listbox")).toHaveTextContent(getOptionLabel(fromDemo[0]));
+    expect(getByRole("listbox")).toHaveTextContent(getOptionLabel(fromDemo[1]));
+    expect(getByRole("listbox")).toHaveTextContent(getOptionLabel(fromDemo[2]));
 
     expect(extendedProps.filterCategories[0].fetchOptions).toBeCalledTimes(1);
     expect(extendedProps.filterCategories[0].fetchOptions).toBeCalledWith("");
 
-    // expect(extendedProps.filterCategories[0].getChipLabel).toBeCalledTimes(1);
-    // expect(extendedProps.filterCategories[0].getChipValue).toBeCalledTimes(1);
-
     fireEvent.change(document.activeElement, { target: { value: "B" } });
 
-    await waitFor(() => getByText('Add "B"'));
+    await waitFor(() => getByText(`${props.addOptionPrefixText} "B"`));
 
-    //await sleep(200);
-    // await waitFor(() =>
-    //   expect(extendedProps.filterCategories[0].fetchOptions).toBeCalledTimes(2)
-    // );
+    expect(getByRole("listbox").children.length).toBe(4);
+    expect(getByRole("listbox")).toHaveTextContent(getOptionLabel(fromDemo[3]));
+    expect(getByRole("listbox")).toHaveTextContent(getOptionLabel(fromDemo[4]));
+    expect(getByRole("listbox")).toHaveTextContent(getOptionLabel(fromDemo[5]));
+    expect(getByRole("listbox")).toHaveTextContent(
+      `${props.addOptionPrefixText} "B"`
+    );
 
-    console.log("#4 debug: --------");
-    debug();
-
-    /*
     expect(extendedProps.filterCategories[0].fetchOptions).toBeCalledTimes(2);
     expect(extendedProps.filterCategories[0].fetchOptions).toBeCalledWith("B");
-    expect(getByRole("listbox")).toHaveTextContent("YES");
-    expect(getByRole("listbox")).toHaveTextContent("NO");
-
-    // filterTextInput.focus();
-
-    expect(queryByText("No Delivered found")).toBeTruthy();
-
-    fireEvent.change(document.activeElement, { target: { value: "YES" } });
-    fireEvent.keyDown(document.activeElement, { key: "ArrowDown" });
-    checkHighlightIs("YES");
-    fireEvent.keyDown(document.activeElement, { key: "Enter" });
-
-    // onFilterChange should be called
-    expect(props.onFilterChange).toBeCalledTimes(1);
-    expect(props.onFilterChange).toBeCalledWith([
-      { label: "YES", type: "DELIVERED", value: true },
-    ]);
-
-    console.log("#5 debug: --------");
-    debug();
-
-    // chip should be there
-    expect(getAllByTestId("filter-chip").length).toBe(1);
-    expect(getByTestId("filter-chip")).toHaveTextContent("DELIVERED: YES");
-    */
   });
 });
-
-function sleep(ms: number): Promise<any> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
