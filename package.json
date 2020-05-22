@@ -3,12 +3,16 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test --env=jsdom",
+    "test_org": "react-scripts test --env=jsdom",
+    "test": "react-scripts test --env=jest-environment-jsdom-sixteen",
     "eject": "react-scripts eject"
   },
   "main": "index.tsx",
   "devDependencies": {
+    "@testing-library/jest-dom": "^5.5.0",
+    "@testing-library/react": "^10.0.3",
     "@types/autosuggest-highlight": "^3.1.0",
+    "jest-environment-jsdom-sixteen": "^1.0.3",
     "react-scripts": "latest"
   },
   "description": "https://github.com/mui-org/material-ui/blob/master/docs/src/pages/components/autocomplete/ComboBox.tsx",

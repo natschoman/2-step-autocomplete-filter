@@ -5,200 +5,46 @@ import React, {
   useEffect,
   forwardRef,
   useImperativeHandle,
+  useRef,
+  Ref,
 } from "react";
 import Autocomplete, {
   createFilterOptions,
 } from "@material-ui/lab/Autocomplete";
-import { Chip, InputAdornment } from "@material-ui/core";
+import { InputAdornment, TextField } from "@material-ui/core";
 import parse from "autosuggest-highlight/parse";
 import match from "autosuggest-highlight/match";
-import { IFilterCategory, IAppliedFilter, IOption } from "./IFilterConfig";
-import { useStyles, FilterTextField } from "./Filter.styles";
+import { IFilterCategory, IAppliedFilter } from "./IFilterConfig";
+import { useStyles } from "./Filter.styles";
+import { reducer, IFilterState } from "./reducer";
+import { ActionTypes } from "./reducerActions";
+import { FilterChip } from "./FilterChip";
 
-const filter = createFilterOptions<any>();
+const filterOptions = createFilterOptions<any>();
 
-type ActionMap<M extends { [index: string]: any }> = {
-  [Key in keyof M]: M[Key] extends undefined
-    ? {
-        type: Key;
-      }
-    : {
-        type: Key;
-        payload: M[Key];
-      };
-};
-
-enum Types {
-  AddFreeTextFilter = "ADD_FREE_TEXT_FILTER",
-  SelectFilterCategory = "SELECT_FILTER_CATEGORY",
-  AddFilter = "ADD_FILTER",
-  RemoveFilter = "REMOVE_FILTER",
-  ValueChange = "VALUE_CHANGE",
-  InputValueChange = "INPUT_VALUE_CHANGE",
-  SetInputLabel = "SET_INPUT_LABEL",
-  ToggleOpen = "TOGGLE_OPEN",
-  ResetFilterInput = "RESET_FILTER_INPUT",
-  SetFilters = "SET_FILTER",
-  SetFetchedOptions = "SET_FETCHED_OPTIONS",
-}
-
-type ActionPayload = {
-  [Types.AddFreeTextFilter]: {
-    text: string;
-  };
-  [Types.SelectFilterCategory]: {
-    filterCategory: IFilterCategory | null;
-  };
-  [Types.AddFilter]: {
-    appliedFilter: IAppliedFilter;
-  };
-  [Types.ValueChange]: {
-    value: string | null;
-  };
-  [Types.InputValueChange]: {
-    inputValue: string;
-  };
-  [Types.SetInputLabel]: {
-    inputLabel: string;
-  };
-  [Types.ToggleOpen]: {
-    open: boolean;
-  };
-  [Types.ResetFilterInput]: {};
-  [Types.RemoveFilter]: {
-    index: number;
-  };
-  [Types.SetFilters]: {
-    filter: any; //Array<IAppliedFilter> | null;
-  };
-  [Types.SetFetchedOptions]: {
-    options: Array<IOption>;
-  };
-};
-
-export type FilterActions = ActionMap<ActionPayload>[keyof ActionMap<
-  ActionPayload
->];
-
-function reducer(state: IState, action: FilterActions) {
-  switch (action.type) {
-    case Types.AddFreeTextFilter:
-      return {
-        ...state,
-        appliedFilter: [
-          ...state.appliedFilter,
-          {
-            type: "TEXT",
-            label: action.payload.text,
-            value: action.payload.text,
-          },
-        ],
-        activeFilterCategory: null,
-        value: "",
-        inputValue: "",
-        open: true,
-        forceOpen: true,
-        options: [],
-      };
-
-    case Types.SelectFilterCategory:
-      return {
-        ...state,
-        activeFilterCategory: action.payload.filterCategory,
-        inputLabel: action.payload.filterCategory
-          ? `${action.payload.filterCategory.label}:`
-          : state.inputLabel,
-        value: "",
-        inputValue: "",
-        open: true,
-        forceOpen: true,
-        options:
-          action.payload.filterCategory &&
-          action.payload.filterCategory.options &&
-          action.payload.filterCategory.options.length
-            ? action.payload.filterCategory.options
-            : [],
-      };
-
-    case Types.AddFilter:
-      return {
-        ...state,
-        appliedFilter: [
-          ...state.appliedFilter,
-          { ...action.payload.appliedFilter },
-        ],
-        activeFilterCategory: null,
-        value: "",
-        inputValue: "",
-        open: true,
-        forceOpen: true,
-        options: [],
-      };
-
-    case Types.ValueChange:
-      return {
-        ...state,
-        value: action.payload.value,
-      };
-
-    case Types.InputValueChange:
-      return {
-        ...state,
-        inputValue: action.payload.inputValue,
-      };
-
-    case Types.SetInputLabel:
-      return {
-        ...state,
-        inputLabel: action.payload.inputLabel,
-      };
-
-    case Types.ToggleOpen:
-      if (state.forceOpen) {
-        return {
-          ...state,
-          forceOpen: null,
-        };
-      }
-      return {
-        ...state,
-        open: action.payload.open,
-      };
-
-    case Types.ResetFilterInput:
-      return {
-        ...state,
-        value: "",
-        inputValue: "",
-        activeFilterCategory: null,
-        open: false,
-        options: [],
-      };
-
-    case Types.RemoveFilter:
-      return {
-        ...state,
-        appliedFilter: state.appliedFilter.filter(
-          (_f, i) => i !== action.payload.index
-        ),
-      };
-
-    case Types.SetFilters:
-      return {
-        ...state,
-        appliedFilter: action.payload.filter,
-      };
-
-    case Types.SetFetchedOptions:
-      return {
-        ...state,
-        options: action.payload.options,
-      };
-
-    default:
-      return state;
+const getLabel = (option: any, state: IFilterState) => {
+  let label = "";
+  if (option.isFreeSolo) {
+    label = option.inputLabel;
+    return label;
   }
-}
+  if (state.activeFilterCategory) {
+    label =
+      typeof option === "object" &&
+      state.activeFilterCategory &&
+      state.activeFilterCategory.getOptionLabel
+        ? state.activeFilterCategory.getOptionLabel(option)
+        : option.label;
+    return label;
+  }
+  const filterConfig = option;
+  if (filterConfig && filterConfig.label) {
+    label = filterConfig.label as string;
+    return label;
+  } else {
+    return "";
+  }
+};
 
 interface IOwnProps {
   /**
@@ -214,13 +60,21 @@ interface IOwnProps {
    */
   filterCategories: Array<IFilterCategory>;
   /**
-   * Possibility to enter free text as a filter - its type is then 'TEXT'
+   * Possibility to enter free text as a filter - its type is then 'TEXT' (default false)
    */
   freeSolo?: boolean;
   /**
-   * Text shown if no option with entered value is found.
+   * Text shown if no option with entered value is found. (default 'No options')
    */
   noOptionsText?: string;
+  /**
+   * Prefix on new option values. (default 'Add')
+   */
+  addOptionPrefixText?: string;
+  /**
+   * Text Filter Chip Label. (default 'Text')
+   */
+  textFilterChipLabel?: string;
   /**
    * Default filters for initial rendering.
    */
@@ -228,25 +82,18 @@ interface IOwnProps {
   /**
    * Callback for changing of filter - passes current filters as parameter.
    */
-  onFilterChange?: (filters: Array<IAppliedFilter>) => any;
+  onFilterChange?: (filters: Array<IAppliedFilter>) => void;
   /**
    * Ref for setFilters function, ref.setFilters(filters: Array<IAppliedFilter>) => void
    */
-  ref?: any;
+  ref?: Ref<FilterRefObject | undefined>;
 }
 
-interface IState {
-  inputLabel: string;
-  activeFilterCategory: IFilterCategory | null;
-  appliedFilter: Array<IAppliedFilter>;
-  value: string | null;
-  inputValue: string;
-  open: boolean;
-  forceOpen: boolean | null;
-  options: Array<IOption> | null;
+export interface FilterRefObject {
+  setFilters: (filters: Array<IAppliedFilter>) => void;
 }
 
-const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
+export const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
   const classes = useStyles();
 
   const {
@@ -257,6 +104,8 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
     filterCategories,
     onFilterChange,
     defaultFilters = [],
+    addOptionPrefixText = "Add",
+    textFilterChipLabel = "Text",
   } = props;
 
   const [state, dispatch] = useReducer(reducer, {
@@ -264,41 +113,52 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
     activeFilterCategory: null,
     appliedFilter:
       defaultFilters && defaultFilters.length ? defaultFilters : [],
-    value: "",
     inputValue: "",
     open: false,
     forceOpen: null,
     options: [],
   });
 
-  // The component instance will be extended
-  // with whatever you return from the callback passed
-  // as the second argument
+  const rendered = useRef(false);
+
+  // Set the filters from outside via ref.setFilters
   useImperativeHandle(ref, () => ({
-    setFilters(newFilter: any) {
-      dispatch({ type: Types.SetFilters, payload: { filter: newFilter } });
+    setFilters(newFilter: Array<IAppliedFilter>) {
+      dispatch({
+        type: ActionTypes.SetFilters,
+        payload: { filter: newFilter },
+      });
     },
   }));
 
+  // callback for filter-change
   useEffect(() => {
-    if (onFilterChange) {
+    if (!rendered.current) {
+      rendered.current = true;
+    } else if (onFilterChange) {
       onFilterChange(state.appliedFilter);
     }
-  }, [onFilterChange, state.appliedFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.appliedFilter]);
 
+  // fetch new options on input change
   useEffect(() => {
     async function getOptions() {
       if (
         state.activeFilterCategory &&
         state.activeFilterCategory.fetchOptions
       ) {
-        const result = await state.activeFilterCategory.fetchOptions(
-          state.inputValue
-        );
-        dispatch({
-          type: Types.SetFetchedOptions,
-          payload: { options: result },
-        });
+        try {
+          const result = await state.activeFilterCategory.fetchOptions(
+            state.inputValue
+          );
+          dispatch({
+            type: ActionTypes.SetFetchedOptions,
+            payload: { options: result },
+          });
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
 
@@ -309,18 +169,18 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
 
   const handleInputOpen = () => {
     dispatch({
-      type: Types.SetInputLabel,
+      type: ActionTypes.SetInputLabel,
       payload: { inputLabel: inputSelectFilterTypeText },
     });
   };
 
   const handleInputClose = () => {
     dispatch({
-      type: Types.SetInputLabel,
+      type: ActionTypes.SetInputLabel,
       payload: { inputLabel: inputPlaceholder },
     });
     dispatch({
-      type: Types.ResetFilterInput,
+      type: ActionTypes.ResetFilterInput,
       payload: {},
     });
   };
@@ -335,45 +195,30 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
             );
 
             return (
-              <Chip
+              <FilterChip
                 key={index}
-                variant="outlined"
-                label={
-                  filter.type === "TEXT" ? (
-                    <>
-                      Text: <strong>{filter.value}</strong>
-                    </>
-                  ) : (
-                    <>
-                      {filterCategory && filterCategory.getChipLabel
-                        ? filterCategory.getChipLabel(filter)
-                        : filter.type}
-                      :{" "}
-                      <strong>
-                        {filterCategory && filterCategory.getChipValue
-                          ? filterCategory.getChipValue(filter)
-                          : filter.label || filter.value}
-                      </strong>
-                    </>
-                  )
-                }
-                onDelete={() => {
+                filter={filter}
+                filterCategory={filterCategory}
+                textFilterChipLabel={textFilterChipLabel}
+                deleteFilter={() => {
                   dispatch({
-                    type: Types.RemoveFilter,
+                    type: ActionTypes.RemoveFilter,
                     payload: { index },
                   });
                 }}
-                className={classes.chip}
               />
             );
           })}
         </>
       )}
       <Autocomplete
-        selectOnFocus
-        clearOnBlur
-        disableClearable
         debug
+        selectOnFocus
+        // disableClearable
+        clearOnBlur
+        clearOnEscape
+        closeIcon={null}
+        popupIcon={null}
         style={{ width: 300 }}
         openOnFocus
         freeSolo={
@@ -386,27 +231,25 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
             ? state.activeFilterCategory.noOptionsText || "No options"
             : noOptionsText || "No options"
         }
-        value={state.value as any}
-        onChange={(event: object, value: any, reason: string) => {
-          dispatch({ type: Types.ValueChange, payload: { value } });
-
+        value={null}
+        onChange={(_event: object, value: any, reason: string) => {
           switch (reason) {
             case "select-option":
               if (!state.activeFilterCategory) {
                 if (value.isFreeSolo) {
                   dispatch({
-                    type: Types.AddFreeTextFilter,
+                    type: ActionTypes.AddFreeTextFilter,
                     payload: { text: value.value },
                   });
                 } else {
                   dispatch({
-                    type: Types.SelectFilterCategory,
+                    type: ActionTypes.SelectFilterCategory,
                     payload: { filterCategory: value },
                   });
                 }
               } else {
                 dispatch({
-                  type: Types.AddFilter,
+                  type: ActionTypes.AddFilter,
                   payload: {
                     appliedFilter: {
                       type: state.activeFilterCategory.type,
@@ -417,32 +260,27 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
                 });
                 handleInputOpen();
               }
-
               break;
+
             case "clear":
-              if (!state.activeFilterCategory) {
-                dispatch({
-                  type: Types.SelectFilterCategory,
-                  payload: { filterCategory: null },
-                });
-              } else {
-                dispatch({
-                  type: Types.SelectFilterCategory,
-                  payload: { filterCategory: null },
-                });
+              dispatch({
+                type: ActionTypes.SelectFilterCategory,
+                payload: { filterCategory: null },
+              });
+              if (state.activeFilterCategory) {
                 handleInputOpen();
               }
-
               break;
+
             case "create-option":
               if (!state.activeFilterCategory) {
                 dispatch({
-                  type: Types.AddFreeTextFilter,
+                  type: ActionTypes.AddFreeTextFilter,
                   payload: { text: value },
                 });
               } else {
                 dispatch({
-                  type: Types.AddFilter,
+                  type: ActionTypes.AddFilter,
                   payload: {
                     appliedFilter: {
                       type: state.activeFilterCategory.type,
@@ -453,16 +291,26 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
                 });
                 handleInputOpen();
               }
+              break;
+
+            default:
+              break;
           }
         }}
         inputValue={state.inputValue}
         renderInput={(params) => (
-          <FilterTextField
-            id="filter-category-input"
+          <TextField
             {...params}
+            classes={{
+              root: classes.textFieldRoot,
+            }}
             variant="outlined"
             onFocus={handleInputOpen}
             onBlur={handleInputClose}
+            inputProps={{
+              ...params.inputProps,
+              "data-testid": "filter-text-input",
+            }}
             InputProps={{
               ...params.InputProps,
               startAdornment: (
@@ -473,24 +321,24 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
             }}
           />
         )}
-        onInputChange={(event: object, newInputValue: any) => {
+        onInputChange={(_event: object, newInputValue: any) => {
           dispatch({
-            type: Types.InputValueChange,
+            type: ActionTypes.InputValueChange,
             payload: { inputValue: newInputValue },
           });
         }}
         open={state.open}
         onOpen={() => {
-          dispatch({ type: Types.ToggleOpen, payload: { open: true } });
+          dispatch({ type: ActionTypes.ToggleOpen, payload: { open: true } });
         }}
         onClose={() => {
-          dispatch({ type: Types.ToggleOpen, payload: { open: false } });
+          dispatch({ type: ActionTypes.ToggleOpen, payload: { open: false } });
         }}
         options={
           state.activeFilterCategory ? state.options : (filterCategories as any)
         }
         filterOptions={(options, params) => {
-          const filtered = filter(options, params) as any;
+          const filtered = filterOptions(options, params) as any;
 
           if (
             state.activeFilterCategory
@@ -501,7 +349,7 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
             if (params.inputValue !== "") {
               filtered.push({
                 isFreeSolo: true,
-                inputLabel: `Add "${params.inputValue}"`,
+                inputLabel: `${addOptionPrefixText} "${params.inputValue}"`,
                 label: params.inputValue,
                 value: params.inputValue,
               });
@@ -511,29 +359,17 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
           return filtered;
         }}
         getOptionLabel={(option) => {
-          if (option.isFreeSolo) {
-            return option.inputLabel;
-          }
-          if (state.activeFilterCategory) {
-            return typeof option === "object" &&
-              state.activeFilterCategory &&
-              state.activeFilterCategory.getOptionLabel
-              ? state.activeFilterCategory.getOptionLabel(option)
-              : option.label;
-          }
-          const filterConfig = option;
-          if (filterConfig && filterConfig.label) {
-            return filterConfig.label as string;
-          } else {
-            return "";
-          }
+          let label = getLabel(option, state);
+          return label;
         }}
-        renderOption={(option, state) => {
-          const { inputValue } = state;
+        renderOption={(option, renderOptionState) => {
+          const { inputValue } = renderOptionState;
           if (option.isFreeSolo) return option.inputLabel;
 
-          const matches = match(option.label, inputValue);
-          const parts = parse(option.label, matches);
+          let label = getLabel(option, state);
+
+          const matches = match(label, inputValue);
+          const parts = parse(label, matches);
           return (
             <div>
               {parts.map((part, index) => (
@@ -541,7 +377,6 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
                   key={index}
                   style={{
                     fontWeight: part.highlight ? 700 : 400,
-                    // color: part.highlight ? "red" : "initial",
                   }}
                 >
                   {part.text}
@@ -550,10 +385,7 @@ const Filter: FC<IOwnProps> = forwardRef((props, ref) => {
             </div>
           );
         }}
-        popupIcon={null}
       />
     </div>
   );
 });
-
-export default Filter;
